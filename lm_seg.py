@@ -8,19 +8,22 @@ import numpy as np
 import warnings
 
 
-def lm_seg(y, x, brk, tol=1, iter_max=100, h_step=0.1,
-           epsil_0=10):
+def lm_seg(y, x, brk, tol=1e-2, iter_max=100, h_step=2.0,
+           epsil_0=10, verbose=True):
     '''
     Fit a segmented model with OLS
     '''
 
-    if brk > np.max(x) or brk < np.min(x):
+    if not (x > brk).any():
         raise ValueError("brk is outside the range.")
 
     # Fit a normal linear model to the data
-    x = sm.add_constant(x)
-    model = sm.OLS(y, x)
+    x_const = sm.add_constant(x)
+    model = sm.OLS(y, x_const)
     init_lm = model.fit(y=y, x=x)
+
+    if verbose:
+        print init_lm.summary()
 
     epsil = epsil_0
 
@@ -38,24 +41,31 @@ def lm_seg(y, x, brk, tol=1, iter_max=100, h_step=0.1,
 
     # Now loop through and minimize the residuals by changing where the
     # breaking point is.
-    while epsil > tol:
-        U = np.max(y - brk, axis=0)
-        V = deriv_max(y, brk)
+    while np.abs(epsil) > tol:
+        U = (x - brk) * (x > brk)
+        V = deriv_max(x, brk)
 
-        X_all = np.vstack([x, U, V])
+        X_all = np.vstack([x, U, V]).T
         X_all = sm.add_constant(X_all)
 
         model = sm.OLS(y, X_all)
         fit = model.fit()
 
-        beta = fit.param[2]  # Get coef
-        gamma = fit.param[3]  # Get coef
+        if verbose:
+            print "Iteration: %s/%s" % (it+1, iter_max)
+            print fit.summary()
+            print "Break Point: " + str(brk)
+            print "Epsilon: " + str(epsil)
 
+        beta = fit.params[2]  # Get coef
+        gamma = fit.params[3]  # Get coef
+
+        # Adjust the break point
         brk += (h_step * gamma) / beta
 
         # How to handle this??
-        if brk > np.max(x) or brk < np.min(x):
-            pass
+        # if not (x > brk).any():
+        #     pass
 
         dev_1 = np.sum(fit.resid**2.)
 
@@ -80,3 +90,7 @@ def deriv_max(a, b, pow=1):
         return dum
     else:
         return -pow * np.max(a - b, axis=0) ** (pow-1)
+
+
+def model_predict(x, model):
+    pass
