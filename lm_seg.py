@@ -3,37 +3,35 @@
 Port of the R seg.lm.fit function
 '''
 
-from statsmodels import OLS
+import statsmodels.api as sm
 import numpy as np
-import warning
+import warnings
 
-def lm_seg(y, x, Z, brk, tol=1, iter_max=100, h_step=0.1):
+
+def lm_seg(y, x, brk, tol=1, iter_max=100, h_step=0.1,
+           epsil_0=10):
     '''
     Fit a segmented model with OLS
     '''
 
-    c1 = (Z <= brk)
-    c2 = (Z >= brk)
-
-    if np.sum(c1 + c2, axis=None) == 0:
+    if brk > np.max(x) or brk < np.min(x):
         raise ValueError("brk is outside the range.")
 
     # Fit a normal linear model to the data
-    init_lm = OLS.fit(y=y, x=x)
+    x = sm.add_constant(x)
+    model = sm.OLS(y, x)
+    init_lm = model.fit(y=y, x=x)
 
-    # Get the epsilon value from the fit
-    epsil_0 = None
-    epsil = None
+    epsil = epsil_0
 
     # Before we get into the loop, make sure that this was a bad fit
     if epsil_0 < tol:
-        warning.warning('Initial epsilon is smaller than tolerance. \
-                         Data may not have a break, or the tolerance \
-                         should be smaller.')
+        warnings.warning('Initial epsilon is smaller than tolerance. \
+                         The tolerance should be set smaller.')
         return init_lm
 
     # Sum of residuals
-    dev_0 = None #np.sum()
+    dev_0 = np.sum(init_lm.resid**2.)
 
     # Count
     it = 0
@@ -41,14 +39,25 @@ def lm_seg(y, x, Z, brk, tol=1, iter_max=100, h_step=0.1):
     # Now loop through and minimize the residuals by changing where the
     # breaking point is.
     while epsil > tol:
-        U = np.max(Z - brk, axis=0)
-        V = deriv_max(Z, brk)
+        U = np.max(y - brk, axis=0)
+        V = deriv_max(y, brk)
 
         X_all = np.vstack([x, U, V])
+        X_all = sm.add_constant(X_all)
 
-        fit = OLS.fit(y=y, x=X_all)
+        model = sm.OLS(y, X_all)
+        fit = model.fit()
 
-        dev_1 = None  # np.sum()
+        beta = fit.param[2]  # Get coef
+        gamma = fit.param[3]  # Get coef
+
+        brk += (h_step * gamma) / beta
+
+        # How to handle this??
+        if brk > np.max(x) or brk < np.min(x):
+            pass
+
+        dev_1 = np.sum(fit.resid**2.)
 
         epsil = (dev_1 - dev_0) / (dev_0 + 1e-3)
 
@@ -56,12 +65,12 @@ def lm_seg(y, x, Z, brk, tol=1, iter_max=100, h_step=0.1):
 
         if it > iter_max:
             break
+            warnings.warning("Max iterations reached. \
+                             Result may not be minimized.")
 
-        beta = None  # Get coef
-        gamma = None  # Get coef
+    # With the break point hopefully found, return the fit
 
-        brk += (h_step * gamma) / beta
-
+    return fit
 
 
 def deriv_max(a, b, pow=1):
