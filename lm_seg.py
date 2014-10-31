@@ -78,7 +78,16 @@ def lm_seg(y, x, brk, tol=1e-2, iter_max=100, h_step=2.0,
             warnings.warning("Max iterations reached. \
                              Result may not be minimized.")
 
-    # With the break point hopefully found, return the fit
+    # With the break point hopefully found, do a final good fit
+    U = (x - brk) * (x > brk)
+    V = deriv_max(x, brk)
+
+    X_all = np.vstack([x, U, V]).T
+    X_all = sm.add_constant(X_all)
+
+    model = sm.OLS(y, X_all)
+    fit = model.fit()
+
 
     return fit
 
