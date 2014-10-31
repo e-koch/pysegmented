@@ -88,8 +88,8 @@ def lm_seg(y, x, brk, tol=1e-2, iter_max=100, h_step=2.0,
     model = sm.OLS(y, X_all)
     fit = model.fit()
 
-
-    return fit
+    brk_err = brk_errs(fit.params, fit.cov_params())
+    return fit, (brk, brk_err)
 
 
 def deriv_max(a, b, pow=1):
@@ -101,5 +101,19 @@ def deriv_max(a, b, pow=1):
         return -pow * np.max(a - b, axis=0) ** (pow-1)
 
 
-def model_predict(x, model):
-    pass
+def brk_errs(params, cov):
+    '''
+    Given the covariance matrix of the fits, calculate the standard
+    error on the break.
+    '''
+
+    # Var gamma
+    term1 = cov[3, 3]
+
+    # Var beta * (beta/gamma)^2
+    term2 = cov[2, 2] * (params[3]/params[2])**2.
+
+    # Correlation b/w gamma and beta
+    term3 = 2 * cov[3, 2] * (params[3]/params[2])
+
+    return np.sqrt(term1 + term2 + term3)
