@@ -101,6 +101,24 @@ def deriv_max(a, b, pow=1):
         return -pow * np.max(a - b, axis=0) ** (pow-1)
 
 
+def model_predict(x, model, brk, model_return=True):
+    '''
+    Pass the segmented fit in and get the final model out.
+    '''
+
+    p = model.params
+
+    trans_pt = np.abs(x-brk).argmin()
+    print trans_pt
+    mod_eqn = lambda k: p[0] + p[1]*k*(k < brk) + \
+        ((p[1]+p[2])*k + (-p[2])*k[trans_pt])*(k >= brk)
+
+    if model_return:
+        return mod_eqn
+
+    return mod_eqn(x)
+
+
 def brk_errs(params, cov):
     '''
     Given the covariance matrix of the fits, calculate the standard
