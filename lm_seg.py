@@ -51,12 +51,6 @@ def lm_seg(y, x, brk, tol=1e-2, iter_max=100, h_step=2.0,
         model = sm.OLS(y, X_all)
         fit = model.fit()
 
-        if verbose:
-            print "Iteration: %s/%s" % (it+1, iter_max)
-            print fit.summary()
-            print "Break Point: " + str(brk)
-            print "Epsilon: " + str(epsil)
-
         beta = fit.params[2]  # Get coef
         gamma = fit.params[3]  # Get coef
 
@@ -70,6 +64,14 @@ def lm_seg(y, x, brk, tol=1e-2, iter_max=100, h_step=2.0,
         dev_1 = np.sum(fit.resid**2.)
 
         epsil = (dev_1 - dev_0) / (dev_0 + 1e-3)
+
+        dev_0 = dev_1
+
+        if verbose:
+            print "Iteration: %s/%s" % (it+1, iter_max)
+            print fit.summary()
+            print "Break Point: " + str(brk)
+            print "Epsilon: " + str(epsil)
 
         it += 1
 
@@ -128,7 +130,7 @@ def brk_errs(params, cov):
     # Var gamma
     term1 = cov[3, 3]
 
-    # Var beta * (beta/gamma)^2
+    # Var beta * (beta/gamma)^2`
     term2 = cov[2, 2] * (params[3]/params[2])**2.
 
     # Correlation b/w gamma and beta
