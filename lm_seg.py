@@ -8,90 +8,140 @@ import numpy as np
 import warnings
 
 
-def lm_seg(y, x, brk, tol=1e-2, iter_max=100, h_step=2.0,
-           epsil_0=10, verbose=True):
-    '''
-    Fit a segmented model with OLS
-    '''
+class Lm_Seg(object):
+    """
 
-    if not (x > brk).any():
-        raise ValueError("brk is outside the range.")
+    """
+    def __init__(self, x, y, brk):
+        super(Lm_Seg, self).__init__()
+        self.x = x
+        self.y = y
+        self.brk = brk
 
-    # Fit a normal linear model to the data
-    x_const = sm.add_constant(x)
-    model = sm.OLS(y, x_const)
-    init_lm = model.fit(y=y, x=x)
+        # Make sure the starting break point is in range of the data
+        if not (self.x > self.brk).any():
+            raise ValueError("brk is outside the range.")
 
-    if verbose:
-        print init_lm.summary()
+        # Check for nans, infs...
+        if not np.isfinite(x).all():
+            self.y = self.y[~np.isfinite(self.x)]
+            self.x = self.x[~np.isfinite(self.x)]
 
-    epsil = epsil_0
+        if not np.isfinite(y).all():
+            self.x = self.x[~np.isfinite(self.y)]
+            self.y = self.y[~np.isfinite(self.y)]
 
-    # Before we get into the loop, make sure that this was a bad fit
-    if epsil_0 < tol:
-        warnings.warning('Initial epsilon is smaller than tolerance. \
-                         The tolerance should be set smaller.')
-        return init_lm
-
-    # Sum of residuals
-    dev_0 = np.sum(init_lm.resid**2.)
-
-    # Count
-    it = 0
-
-    # Now loop through and minimize the residuals by changing where the
-    # breaking point is.
-    while np.abs(epsil) > tol:
-        U = (x - brk) * (x > brk)
-        V = deriv_max(x, brk)
-
-        X_all = np.vstack([x, U, V]).T
-        X_all = sm.add_constant(X_all)
-
-        model = sm.OLS(y, X_all)
-        fit = model.fit()
-
-        beta = fit.params[2]  # Get coef
-        gamma = fit.params[3]  # Get coef
-
-        # Adjust the break point
-        brk += (h_step * gamma) / beta
-
-        # How to handle this??
-        # if not (x > brk).any():
-        #     pass
-
-        dev_1 = np.sum(fit.resid**2.)
-
-        epsil = (dev_1 - dev_0) / (dev_0 + 1e-3)
-
-        dev_0 = dev_1
+    def fit(self, tol=1e-3, iter_max=100, h_step=2.0, epsil_0=10,
+            constant=True, verbose=True):
+        '''
+        '''
+        # Fit a normal linear model to the data
+        if constant:
+            x_const = sm.add_constant(self.x)
+            model = sm.OLS(self.y, x_const)
+        else:
+            model = sm.OLS(self.y, self.x)
+        init_lm = model.fit()
 
         if verbose:
-            print "Iteration: %s/%s" % (it+1, iter_max)
-            print fit.summary()
-            print "Break Point: " + str(brk)
-            print "Epsilon: " + str(epsil)
+            print init_lm.summary()
 
-        it += 1
+        epsil = epsil_0
 
-        if it > iter_max:
-            break
-            warnings.warning("Max iterations reached. \
-                             Result may not be minimized.")
+        # Before we get into the loop, make sure that this was a bad fit
+        if epsil_0 < tol:
+            warnings.warning('Initial epsilon is smaller than tolerance. \
+                             The tolerance should be set smaller.')
+            return init_lm
 
-    # With the break point hopefully found, do a final good fit
-    U = (x - brk) * (x > brk)
-    V = deriv_max(x, brk)
+        # Sum of residuals
+        dev_0 = np.sum(init_lm.resid**2.)
 
-    X_all = np.vstack([x, U, V]).T
-    X_all = sm.add_constant(X_all)
+        # Count
+        it = 0
 
-    model = sm.OLS(y, X_all)
-    fit = model.fit()
+        # Now loop through and minimize the residuals by changing where the
+        # breaking point is.
+        while np.abs(epsil) > tol:
+            U = (self.x - self.brk) * (self.x > self.brk)
+            V = deriv_max(self.x, self.brk)
 
-    brk_err = brk_errs(fit.params, fit.cov_params())
-    return fit, (brk, brk_err)
+            X_all = np.vstack([self.x, U, V]).T
+            if constant:
+                X_all = sm.add_constant(X_all)
+
+            model = sm.OLS(self.y, X_all)
+            fit = model.fit()
+
+            beta = fit.params[2]  # Get coef
+            gamma = fit.params[3]  # Get coef
+
+            # Adjust the break point
+            self.brk += (h_step * gamma) / beta
+
+            # How to handle this??
+            # if not (x > brk).any():
+            #     pass
+
+            dev_1 = np.sum(fit.resid**2.)
+
+            epsil = (dev_1 - dev_0) / (dev_0 + 1e-3)
+
+            dev_0 = dev_1
+
+            if verbose:
+                print "Iteration: %s/%s" % (it+1, iter_max)
+                print fit.summary()
+                print "Break Point: " + str(self.brk)
+                print "Epsilon: " + str(epsil)
+
+            it += 1
+
+            if it > iter_max:
+                warnings.warning("Max iterations reached. \
+                                 Result may not be minimized.")
+                break
+
+        # With the break point hopefully found, do a final good fit
+        U = (self.x - self.brk) * (self.x > self.brk)
+        V = deriv_max(self.x, self.brk)
+
+        X_all = np.vstack([self.x, U, V]).T
+        X_all = sm.add_constant(X_all)
+
+        model = sm.OLS(self.y, X_all)
+        self.fit = model.fit()
+
+        self.brk_err = brk_errs(fit.params, fit.cov_params())
+
+        return self
+
+    def model(self, x=None, model_return=False):
+        p = self.fit.params
+
+        trans_pt = np.abs(self.x-self.brk).argmin()
+
+        mod_eqn = lambda k: p[0] + p[1]*k*(k < self.brk) + \
+            ((p[1]+p[2])*k + (-p[2])*k[trans_pt])*(k >= self.brk)
+
+        if model_return or x is None:
+            return mod_eqn
+
+        return mod_eqn(x)
+
+    def plot(self, x, show_data=True):
+        '''
+        '''
+        import matplotlib.pyplot as p
+
+        if show_data:
+            p.plot(self.x, self.y, 'bD')
+
+        p.plot(x, self.model(x), 'g')
+
+        p.grid(True)
+
+        p.show()
 
 
 def deriv_max(a, b, pow=1):
@@ -101,24 +151,6 @@ def deriv_max(a, b, pow=1):
         return dum
     else:
         return -pow * np.max(a - b, axis=0) ** (pow-1)
-
-
-def model_predict(x, model, brk, model_return=True):
-    '''
-    Pass the segmented fit in and get the final model out.
-    '''
-
-    p = model.params
-
-    trans_pt = np.abs(x-brk).argmin()
-    print trans_pt
-    mod_eqn = lambda k: p[0] + p[1]*k*(k < brk) + \
-        ((p[1]+p[2])*k + (-p[2])*k[trans_pt])*(k >= brk)
-
-    if model_return:
-        return mod_eqn
-
-    return mod_eqn(x)
 
 
 def brk_errs(params, cov):
