@@ -140,18 +140,26 @@ class Lm_Seg(object):
         '''
         n_slopes = self.params[1:-2].shape[0]
         self._slopes = np.empty(n_slopes)
+        self._slope_errs = np.empty(n_slopes)
 
         for s in range(n_slopes):
             if s == 0:
                 self._slopes[s] = self.params[s+1]
+                self._slope_errs[s] = self.param_errs[s+1]
             else:
                 self._slopes[s] = self.params[s+1] + self._slopes[:s]
+                self._slope_errs[s] = \
+                    np.sqrt(self.param_errs[s+1]**2 + self._slope_errs[:s]**2)
 
         return self
 
     @property
     def slopes(self):
         return self._slopes
+
+    @property
+    def slope_errs(self):
+        return self._slope_errs
 
     @property
     def params(self):
