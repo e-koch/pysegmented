@@ -32,7 +32,7 @@ class Lm_Seg(object):
             self.y = self.y[~np.isfinite(self.y)]
 
     def fit_model(self, tol=1e-3, iter_max=100, h_step=2.0, epsil_0=10,
-            constant=True, verbose=True):
+                  constant=True, verbose=True):
         '''
         '''
         # Fit a normal linear model to the data
@@ -111,13 +111,19 @@ class Lm_Seg(object):
 
         model = sm.OLS(self.y, X_all)
         self.fit = model.fit()
+        self._params = self.fit.params
+        cov_matrix = self.fit.cov_params()
+        self._errs = np.asarray([np.sqrt(cov_matrix[i, i])
+                                 for i in range(cov_matrix.shape[0])])
 
         self.brk_err = brk_errs(fit.params, fit.cov_params())
+
+        self.get_slopes()
 
         return self
 
     def model(self, x=None, model_return=False):
-        p = self.fit.params
+        p = self.params
 
         trans_pt = np.abs(self.x-self.brk).argmin()
 
@@ -128,6 +134,32 @@ class Lm_Seg(object):
             return mod_eqn
 
         return mod_eqn(x)
+
+    def get_slopes(self):
+        '''
+        '''
+        n_slopes = self.params[1:-2].shape[0]
+        self._slopes = np.empty(n_slopes)
+
+        for s in range(n_slopes):
+            if s == 0:
+                self._slopes[s] = self.params[s+1]
+            else:
+                self._slopes[s] = self.params[s+1] + self._slopes[:s]
+
+        return self
+
+    @property
+    def slopes(self):
+        return self._slopes
+
+    @property
+    def params(self):
+        return np.append(self._params, self.brk)
+
+    @property
+    def param_errs(self):
+        return np.append(self._errs, self.brk_err)
 
     def plot(self, x, show_data=True):
         '''
